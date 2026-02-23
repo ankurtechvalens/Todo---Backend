@@ -40,7 +40,8 @@ export const loginUser = async ({ email, password }) => {
   return {
     id: user.id,
     name: user.name,
-    email: user.email
+    email: user.email,
+    role: user.role,
   };
 };
 
@@ -59,7 +60,7 @@ export const logoutUser = async (req, res) => {
 export const getUserById = async (id) => {
   return prisma.user.findUnique({
     where: { id },
-    select: { id: true, name: true, email: true }
+    select: { id: true, name: true, email: true, role: true }
   });
 };
 
@@ -67,7 +68,7 @@ export const updateUser = async (id, data) => {
   return prisma.user.update({
     where: { id },
     data,
-    select: { id: true, name: true, email: true }
+    select: { id: true, name: true, email: true, role: true }
   });
 };
 

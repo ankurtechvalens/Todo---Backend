@@ -8,7 +8,7 @@ const router = express.Router();
 router.post('/register',validate(registerSchema), registerUser);
 router.post('/login',validate(loginSchema), loginUser);
 router.put("/update", authMiddleware, updateUser);
-router.get('/profile', authMiddleware, getProfile)
+router.get('/user/profile', authMiddleware, getProfile)
 router.post("/refresh", refreshTokenController);
 // userRouter.delete('/delete/:id', authMiddleware, userDelete);
 

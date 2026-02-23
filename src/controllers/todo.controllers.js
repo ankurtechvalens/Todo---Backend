@@ -1,21 +1,45 @@
 import * as todoService from "../services/todo.service.js";
+import cloudinary from "../config/cloundinary.js";
 
 export const createTodo = async (req, res, next) => {
   try {
-
-    const { title } = req.body;
+    const { title, description } = req.body;
 
     if (!title) {
       return res.status(400).json({ message: "Title is required" });
     }
 
-    // res.status(201).json({ id: Date.now(), // fake ID
-    //   title,
-    //   completed: false
-    // });
-    const todo = await todoService.createTodo(req.user.id, req.body);
-    res.status(201).json(todo);
+    let imageUrl = null;
     
+if (req.file) {
+  console.log("Is Buffer?", Buffer.isBuffer(req.file.buffer));
+  console.log("Buffer size (bytes):", req.file.buffer.length);
+}
+    // If image is uploaded
+    if (req.file) {
+      const result = await new Promise((resolve, reject) => {
+        cloudinary.uploader.upload_stream(
+          { folder: "todos" },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        ).end(req.file.buffer);
+      });
+
+      imageUrl = result.secure_url;
+    }
+
+    const todo = await todoService.createTodo(
+      req.user.id,
+      {
+        title,
+        description,
+        imageUrl,
+      }
+    );
+
+    res.status(201).json(todo);
   } catch (error) {
     next(error);
   }

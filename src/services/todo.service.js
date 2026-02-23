@@ -1,12 +1,32 @@
 import {prisma} from "../config/prisma.js";
 
 export const createTodo = async (userId, data) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    const error = new Error("User not found");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  // Premium restriction
+  if (data.imageUrl && user.role !== "PREMIUM") {
+    const error = new Error(
+      "Upgrade to premium to add image in your todo"
+    );
+    error.statusCode = 403;
+    throw error;
+  }
+
   return prisma.todo.create({
     data: {
       title: data.title,
-      description: data.description ?? null, // optional
-      userId
-    }
+      description: data.description ?? null,
+      imageUrl: data.imageUrl ?? null,
+      userId,
+    },
   });
 };
 
@@ -20,7 +40,8 @@ export const getUserTodos = async (userId) => {
 export const updateTodo = async (userId, todoId, data) => {
   return prisma.todo.update({
     where: {
-      id: todoId
+      id: todoId,
+      userId
     },
     data: {
       ...(data.title && { title: data.title }),

@@ -17,6 +17,7 @@ model User {
   name         String
   email        String   @unique
   password     String
+  role         Role     @default(BASIC)
   refreshToken String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -24,10 +25,17 @@ model User {
   todos        Todo[]
 }
 
+enum Role {
+  BASIC
+  PREMIUM
+}
+
+
 model Todo {
   id          String      @id @default(uuid())
   title       String
-  description String?  
+  description String?
+  imageUrl    String?
   completed   Boolean   @default(false)
 
   userId      Int
