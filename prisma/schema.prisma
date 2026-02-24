@@ -16,13 +16,15 @@ model User {
   id           Int      @id @default(autoincrement())
   name         String
   email        String   @unique
-  password     String
+  password String?
+  googleId String? @unique
   role         Role     @default(BASIC)
   refreshToken String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   todos        Todo[]
+  payments Payment[]
 }
 
 enum Role {
@@ -38,9 +40,31 @@ model Todo {
   imageUrl    String?
   completed   Boolean   @default(false)
 
-  userId      Int
+  userId      Int 
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  @@index([userId])
+}
+
+model Payment {
+  id        String   @id @default(uuid())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  amount    Float
+  currency  String   @default("INR")
+  status    PaymentStatus @default(PENDING)
+  provider  String   // Razorpay, Stripe, etc
+  orderId   String?  // Payment gateway order reference
+
+  createdAt DateTime @default(now())
+  @@index([userId])
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
 }

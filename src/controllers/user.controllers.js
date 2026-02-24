@@ -51,6 +51,24 @@ export const loginUser = async (req, res, next) => {
   }
 };
 
+export const logoutUser = async (req, res, next) => {
+  try {
+    const refreshToken = req.cookies.refreshToken;
+
+    await userService.logoutUser(refreshToken);
+
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      sameSite: "strict",
+      secure: false
+    });
+
+    res.json({ message: "Logged out successfully" });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getProfile = async (req, res, next) => {
   try {
     const user = await userService.getUserById(req.user.id);
@@ -79,6 +97,21 @@ export const refreshTokenController = async (req, res, next) => {
     const newAccessToken = await userService.refreshAccessToken(refreshToken);
 
     res.json({ accessToken: newAccessToken });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const changePlan = async (req, res, next) => {
+  try {
+    const { role } = req.body;
+
+    const updatedUser = await userService.changeUserPlan(
+      req.user.id,
+      role
+    );
+
+    res.json(updatedUser);
   } catch (error) {
     next(error);
   }
