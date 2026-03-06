@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import bcrypt from "bcrypt";
 
 export const generateAccessToken = (user) => {
   return jwt.sign(
@@ -8,10 +9,18 @@ export const generateAccessToken = (user) => {
   );
 };
 
-export const generateRefreshToken = (user) => {
-  return jwt.sign(
+export const generateRefreshToken = async (user) => {
+
+  const refreshToken = jwt.sign(
     { id: user.id },
     process.env.JWT_REFRESH_SECRET,
     { expiresIn: "7d" }
   );
+
+  const hashedToken = await bcrypt.hash(refreshToken, 10);
+
+  return {
+    refreshToken,     // send to client
+    hashedToken       // store in DB
+  };
 };

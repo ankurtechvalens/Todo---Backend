@@ -2,7 +2,7 @@ import express from "express";
 import userRoutes from "./user.router.js";
 import todoRoutes from "./todo.router.js";
 import paymentRoutes from './payment.router.js'
-import authRoutes from "./auth.routes.js";
+import authRoutes from "./googleAuth.routes.js";
 
 const router = express.Router();
 

@@ -1,11 +1,18 @@
 import { OAuth2Client } from "google-auth-library";
 import { prisma } from "../config/prisma.js";
-import { generateAccessToken, generateRefreshToken } from "../utils/generateToken.js";
+import {
+  generateAccessToken,
+  generateRefreshToken,
+} from "../utils/generateToken.js";
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 export const googleLoginService = async (idToken) => {
+  if (!idToken) {
+    throw new Error("Google ID token is required");
+  }
 
+  // Verify Google token
   const ticket = await client.verifyIdToken({
     idToken,
     audience: process.env.GOOGLE_CLIENT_ID,
@@ -13,36 +20,47 @@ export const googleLoginService = async (idToken) => {
 
   const payload = ticket.getPayload();
 
+  if (!payload || !payload.email) {
+    throw new Error("Invalid Google token");
+  }
+
   const { email, name, sub } = payload;
 
+  // Check if user exists
   let user = await prisma.user.findUnique({
-    where: { email }
+    where: { email },
   });
 
+  // Create user if not exists
   if (!user) {
     user = await prisma.user.create({
       data: {
         email,
         name,
         googleId: sub,
-      }
+        role: "BASIC", // optional default role
+      },
     });
   }
 
+  // Generate tokens
   const accessToken = generateAccessToken(user);
   const refreshToken = generateRefreshToken(user);
-    await userService.saveRefreshToken(user.id, refreshToken);
 
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: false, 
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000
-    });
+  // Save refresh token in DB
   await prisma.user.update({
     where: { id: user.id },
-    data: { refreshToken }
+    data: { refreshToken },
   });
 
-  return { accessToken, user };
+  return {
+    accessToken,
+    refreshToken,
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+    },
+  };
 };

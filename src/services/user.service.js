@@ -1,7 +1,7 @@
 import {prisma} from "../config/prisma.js";
 import bcrypt from "bcrypt";
 import jwt from 'jsonwebtoken'
-import { generateAccessToken } from "../utils/generateToken.js";
+import { generateAccessToken, generateRefreshToken } from "../utils/generateToken.js";
 import * as userRepository from '../repositories/user.repository.js'
 
 export const createUser = async ({ name, email, password }) => {
@@ -15,11 +15,8 @@ export const createUser = async ({ name, email, password }) => {
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  return userRepository.userCreate({name, email, password: hashedPassword});
-  // return prisma.user.create({
-  //   data: { name, email, password: hashedPassword },
-  //   select: { id: true, name: true, email: true }
-  // });
+  return userRepository.createUser({name, email, password: hashedPassword});
+
 };
 
 export const loginUser = async ({ email, password }) => {
@@ -54,22 +51,35 @@ export const logoutUser = async (refreshToken) => {
     throw error;
   }
 
-  const user = await userRepository.findUserByRefreshToken(refreshToken);
+  const decoded = jwt.verify(
+    refreshToken,
+    process.env.JWT_REFRESH_SECRET
+  );
 
-  if (!user) {
-    const error = new Error("User not logged in !!");
+  const user = await userRepository.findUserById(decoded.id);
+
+  if (!user || !user.refreshToken) {
+    const error = new Error("User not logged in");
     error.statusCode = 400;
     throw error;
   }
 
-  await userRepository.clearRefreshToken(user.id);
+  const isMatch = await bcrypt.compare(
+    refreshToken,
+    user.refreshToken
+  );
+
+  if (!isMatch) {
+    const error = new Error("Invalid session");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  await userRepository.updateRefreshToken(user.id, null);
 };
 
 export const getUserById = async (id) => {
-  return prisma.user.findUnique({
-    where: { id },
-    select: { id: true, name: true, email: true, role: true }
-  });
+  return userRepository.findUserSafeById(id);
 };
 
 export const updateUser = async (id, data) => {
@@ -77,18 +87,11 @@ export const updateUser = async (id, data) => {
     delete data.role;
   }
 
-  return prisma.user.update({
-    where: { id },
-    data,
-    select: { id: true, name: true, email: true, role: true }
-  });
+  return userRepository.updateUserSafe(id, data);
 };
 
 export const saveRefreshToken = async (userId, token) => {
-  await prisma.user.update({
-    where: { id: userId },
-    data: { refreshToken: token }
-  });
+  await userRepository.updateRefreshToken(userId, token)
 };
 
 export const refreshAccessToken = async (refreshToken) => {
@@ -98,47 +101,65 @@ export const refreshAccessToken = async (refreshToken) => {
     throw error;
   }
 
-  // Verify refresh token
   let decoded;
+
   try {
     decoded = jwt.verify(
       refreshToken,
       process.env.JWT_REFRESH_SECRET
     );
   } catch {
-    const error = new Error("Invalid refresh token");
+    const error = new Error("Invalid or expired refresh token");
     error.statusCode = 403;
     throw error;
   }
 
-  // Find user
-  const user = await prisma.user.findUnique({
-    where: { id: decoded.id }
-  });
+  const user = await userRepository.findUserById(decoded.id);
 
-  if (!user || user.refreshToken !== refreshToken) {
-    const error = new Error("Refresh token mismatch");
+  if (!user || !user.refreshToken) {
+    const error = new Error("Session not found");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const isMatch = await bcrypt.compare(
+    refreshToken,
+    user.refreshToken
+  );
+
+  if (!isMatch) {
+    // Reuse detection
+    await userRepository.updateRefreshToken(user.id, null);
+
+    const error = new Error("Refresh token reuse detected");
     error.statusCode = 403;
     throw error;
   }
 
   const newAccessToken = generateAccessToken(user);
 
-  return newAccessToken;
+  const {
+    refreshToken: newRefreshToken,
+    hashedToken: newHashedToken
+  } = await generateRefreshToken(user);
+
+  await userRepository.updateRefreshToken(
+    user.id,
+    newHashedToken
+  );
+
+  return {
+    accessToken: newAccessToken,
+    refreshToken: newRefreshToken
+  };
 };
 
 export const changeUserPlan = async (userId, role) => {
-
-  // Only allow BASIC downgrade manually
   if (role !== "BASIC") {
     const error = new Error("Invalid role change");
     error.statusCode = 400;
     throw error;
   }
 
-  return prisma.user.update({
-    where: { id: userId },
-    data: { role: "BASIC" },
-    select: { id: true, name: true, email: true, role: true }
-  });
+  return userRepository.updateUserRole(userId, "BASIC");
 };

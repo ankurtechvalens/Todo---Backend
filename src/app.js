@@ -1,11 +1,14 @@
 import express from "express";
 import cors from "cors";
-import routes from "./routes/index.js";
 import errorMiddleware from "./middleware/error.middleware.js";
 import { logger } from "./middleware/logger.middleware.js";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import routesv1 from "./routes/v1/index.js";
+import routesv2 from "./routes/v2/index.js";
+import swaggerUi from "swagger-ui-express";
+import swaggerSpec from "./config/swagger.js";
 
 const app = express();
 app.use(cookieParser());
@@ -46,17 +49,20 @@ export const apiLimiter = rateLimit({
 
 app.use("/api", apiLimiter);
 // Routes
-app.use("/api", routes);
+app.use("/api/v1", routesv1);
+app.use("/api/v2", routesv2);
 
-// 404
-app.use((req, res) => {
-  res.status(404).json({ message: "Route not found" });
-});
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
 
 app.get("/", (req, res) => {
   res.send("Welcome to the Todo API");
 });
 
+// 404
+app.use((req, res) => {
+  res.status(404).json({ message: "Route not found" });
+});
 // Global Error Handler
 app.use(errorMiddleware);
 

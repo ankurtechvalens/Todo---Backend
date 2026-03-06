@@ -1,14 +1,14 @@
-import * as userService from "../services/user.service.js";
-import { generateAccessToken, generateRefreshToken } from "../utils/generateToken.js";
+import * as userService from "../../services/user.service.js";
+import { generateAccessToken, generateRefreshToken } from "../../utils/generateToken.js";
 
 export const registerUser = async (req, res, next) => {
   try {
     const user = await userService.createUser(req.body);
 
     const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
+    const { refreshToken, hashedToken } = await generateRefreshToken(user);
 
-    await userService.saveRefreshToken(user.id, refreshToken);
+    await userService.saveRefreshToken(user.id, hashedToken);
 
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
@@ -32,10 +32,9 @@ export const loginUser = async (req, res, next) => {
     const user = await userService.loginUser(req.body);
 
     const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
+    const { refreshToken, hashedToken } = await generateRefreshToken(user);
 
-    // Store refresh token in DB
-    await userService.saveRefreshToken(user.id, refreshToken);
+    await userService.saveRefreshToken(user.id, hashedToken);
 
     // Send refresh token as HttpOnly cookie
     res.cookie("refreshToken", refreshToken, {
@@ -92,11 +91,19 @@ export const updateUser = async (req, res, next) => {
 
 export const refreshTokenController = async (req, res, next) => {
   try {
-    const refreshToken = req.cookies.refreshToken;
+    const oldRefreshToken = req.cookies.refreshToken;
 
-    const newAccessToken = await userService.refreshAccessToken(refreshToken);
+    const { accessToken, refreshToken } = await userService.refreshAccessToken(oldRefreshToken);
 
-    res.json({ accessToken: newAccessToken });
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: false, 
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
+
+    res.json({ accessToken });
+
   } catch (error) {
     next(error);
   }

@@ -26,11 +26,46 @@ export const updateUserById = async (id, data) => {
   });
 };
 
+export const updateUserRole = async (userId, role) => {
+  return prisma.user.update({
+    where: { id: userId },
+    data: { role },
+    select: { id: true, name: true, email: true, role: true }
+  });
+};
+
+export const updateUserSafe = async (id, data) => {
+  return prisma.user.update({
+    where: { id },
+    data,
+    select: { id: true, name: true, email: true, role: true }
+  });
+};
+
+export const findUserSafeById = async (id) => {
+  return prisma.user.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true
+    }
+  });
+};
+
 export const findUserByRefreshToken = async (refreshToken) => {
   return prisma.user.findFirst({
     where: { refreshToken }
   });
 };
+
+export const updateRefreshToken = async (userId, token) => {
+  return prisma.user.update({
+    where: { id: userId },
+    data: { refreshToken: token }
+  });
+}
 
 export const clearRefreshToken = async (userId) => {
   return prisma.user.update({

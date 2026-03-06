@@ -1,8 +1,8 @@
 import express from 'express'
-import { registerUser, loginUser, updateUser, getProfile, refreshTokenController, logoutUser, changePlan } from '../controllers/user.controllers.js';
-import authMiddleware from "../middleware/auth.js";
-import { validate } from '../middleware/validate.js';
-import {registerSchema , loginSchema} from '../validators/user.validators.js'
+import { registerUser, loginUser, updateUser, getProfile, refreshTokenController, logoutUser, changePlan } from '../../controllers/v1/user.controllers.js';
+import authMiddleware from "../../middleware/auth.js";
+import { validate } from '../../middleware/validate.js';
+import {registerSchema , loginSchema} from '../../validators/user.validators.js'
 const router = express.Router();
 
 router.post('/register',validate(registerSchema), registerUser);
