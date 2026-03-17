@@ -11,22 +11,7 @@ export const createPayment = async (userId, amount) => {
 };
 
 export const verifyPayment = async (paymentId) => {
-
-  return prisma.$transaction(async (tx) => {
-
-    const payment = await tx.payment.update({
-      where: { id: paymentId },
-      data: { status: "SUCCESS" }
-    });
-
-    await tx.user.update({
-      where: { id: payment.userId },
-      data: { role: "PREMIUM" }
-    });
-
-    return payment;
-  });
-
+  return paymentRepository.verifyPaymentAndUpgradeUser(paymentId);
 };
 
 export const getUserPayments = (userId) => {

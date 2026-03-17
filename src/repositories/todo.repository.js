@@ -17,6 +17,12 @@ export const createTodo = (userId,data) => {
       });
 }
 
+export const countTodos = (userId) => {
+  return prisma.todo.count({
+    where: { userId }
+  });
+};
+
 export const getAllTodos = (userId,skip,limit,order,sortBy) => {
     return prisma.todo.findMany({
           where: { userId },
@@ -47,4 +53,13 @@ export const updateTodo = (userId, todoId, data) => {
           ...(data.completed !== undefined && { completed: data.completed })
         }
       });
+}
+
+export const deleteTodo = (todoId, userId) => {
+  return prisma.todo.delete({
+      where: {
+        id: todoId,
+        userId
+      }
+    });
 }

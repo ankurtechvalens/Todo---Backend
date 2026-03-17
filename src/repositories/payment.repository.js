@@ -21,3 +21,33 @@ export const findPaymentsByUser = (userId) => {
     orderBy: { createdAt: "desc" }
   });
 };
+
+export const verifyPaymentAndUpgradeUser = async (paymentId) => {
+  return prisma.$transaction(async (tx) => {
+
+    // 1. Update payment status
+    const payment = await tx.payment.update({
+      where: { id: paymentId },
+      data: { status: "SUCCESS" }
+    });
+
+    // 2. Get PREMIUM role
+    const premiumRole = await tx.role.findUnique({
+      where: { name: "PREMIUM" }
+    });
+
+    if (!premiumRole) {
+      throw new Error("PREMIUM role not found");
+    }
+
+    // 3. Update user with roleId
+    await tx.user.update({
+      where: { id: payment.userId },
+      data: {
+        roleId: premiumRole.id
+      }
+    });
+
+    return payment;
+  });
+};

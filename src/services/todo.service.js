@@ -1,9 +1,15 @@
-import {prisma} from "../config/prisma.js";
 import { getCache, setCache, deleteByPattern } from "../utils/cache.js";
 import { io } from "../server.js";
 import * as todoRepository from '../repositories/todo.repository.js'
+import cloudinary from "../config/cloundinary.js";
 
-export const createTodo = async (userId, data) => {
+export const createTodo = async (userId, data, file) => {
+
+  if (!data.title) {
+    const error = new Error("Title is required");
+    error.statusCode = 400;
+    throw error;
+  }
 
   const user = await todoRepository.findUniqueUser(userId);
 
@@ -13,21 +19,50 @@ export const createTodo = async (userId, data) => {
     throw error;
   }
 
-  if (data.imageUrl && user.role !== "PREMIUM") {
-    const error = new Error(
-      "Upgrade to premium to add image in your todo"
-    );
-    error.statusCode = 403;
-    throw error;
+  // BASIC user limit
+  if (user.role === "BASIC") {
+
+    const count = await todoRepository.countTodos(userId);
+
+    if (count >= 10) {
+      const error = new Error(
+        "Basic users can create only 10 todos. Upgrade to premium."
+      );
+      error.statusCode = 403;
+      throw error;
+    }
   }
 
-  const todo = await todoRepository.createTodo(userId,data);
+  let imageUrl = null;
 
-  
-  //Clear all cached todo lists of this user
+  if (file) {
+
+    if (user.role !== "PREMIUM") {
+      const error = new Error("Upgrade to premium to upload images");
+      error.statusCode = 403;
+      throw error;
+    }
+
+    const result = await new Promise((resolve, reject) => {
+      cloudinary.uploader.upload_stream(
+        { folder: "todos" },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      ).end(file.buffer);
+    });
+
+    imageUrl = result.secure_url;
+  }
+
+  const todo = await todoRepository.createTodo(userId, {
+    ...data,
+    imageUrl
+  });
+
   await deleteByPattern(`todos:${userId}:*`);
-  
-  // Emit event to all user devices
+
   io.to(userId).emit("todo:created", todo);
 
   return todo;
@@ -90,14 +125,8 @@ export const updateTodo = async (userId, todoId, data) => {
 
 export const deleteTodo = async (userId, todoId) => {
 
-  const deleted = await prisma.todo.delete({
-    where: {
-      id: todoId,
-      userId
-    }
-  });
+  const deleted = await todoRepository.deleteTodo(todoId, userId);
 
-  
   // Clear cache
   await deleteByPattern(`todos:${userId}:*`);
   

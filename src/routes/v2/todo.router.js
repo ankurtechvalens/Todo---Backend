@@ -1,5 +1,5 @@
 import express from "express";
-import authMiddleware from "../../middleware/auth.js";
+import authMiddleware from "../../middleware/auth.middleware.js";
 import {
   createTodo,
   getTodos,
@@ -9,6 +9,7 @@ import {
 import { createTodoSchema } from "../../validators/user.validators.js";
 import { validate } from "../../middleware/validate.js";
 import upload from "../../middleware/upload.js";
+import { authorize } from "../../middleware/role.middleware.js";
 
 const router = express.Router();
 
@@ -16,5 +17,6 @@ router.post("/", authMiddleware, upload.single("image"), validate(createTodoSche
 router.get("/", authMiddleware, getTodos);
 router.put("/:id", authMiddleware, updateTodo);
 router.delete("/:id", authMiddleware, deleteTodo);
+
 
 export default router;

@@ -1,9 +1,11 @@
-import { OAuth2Client } from "google-auth-library";
-import { prisma } from "../config/prisma.js";
+import {
+  OAuth2Client
+} from "google-auth-library";
 import {
   generateAccessToken,
   generateRefreshToken,
 } from "../utils/generateToken.js";
+import * as userRepository from '../repositories/user.repository.js'
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -24,34 +26,31 @@ export const googleLoginService = async (idToken) => {
     throw new Error("Invalid Google token");
   }
 
-  const { email, name, sub } = payload;
+  const {
+    email,
+    name,
+    sub
+  } = payload;
 
   // Check if user exists
-  let user = await prisma.user.findUnique({
-    where: { email },
-  });
+  let user = await userRepository.findUserByEmail(email);
 
   // Create user if not exists
   if (!user) {
-    user = await prisma.user.create({
-      data: {
-        email,
-        name,
-        googleId: sub,
-        role: "BASIC", // optional default role
-      },
-    });
+    user = await userRepository.createUserByGoogle({email,name,sub})
+    console.log("User created from Google SSO...");
+    
   }
 
   // Generate tokens
   const accessToken = generateAccessToken(user);
-  const refreshToken = generateRefreshToken(user);
-
+  const {
+    refreshToken,
+    hashedToken
+  } = await generateRefreshToken(user);
+  
   // Save refresh token in DB
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { refreshToken },
-  });
+  await userRepository.updateRefreshToken(user.id, hashedToken)
 
   return {
     accessToken,
