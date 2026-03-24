@@ -39,7 +39,6 @@ export const getKeysInfo = async (req, res, next) => {
         apiKey: app.apiKey,
         maskedApiSecret: app.maskedApiSecret,
     });
-
   } catch (err) {
     next(err);
   }
