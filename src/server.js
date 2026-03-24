@@ -1,9 +1,15 @@
   import app from "./app.js";
   import dotenv from "dotenv";
   import http from "http";
-  import { Server } from "socket.io";
-  import { prisma } from "./config/prisma.js";
-import { sequelize } from "./config/databseconfigSq.js";
+  import {
+    Server
+  } from "socket.io";
+  import {
+    prisma
+  } from "./config/prisma.js";
+  import {
+    sequelize
+  } from "./config/databaseConfigSq.js";
 
   dotenv.config();
 
@@ -35,12 +41,12 @@ import { sequelize } from "./config/databseconfigSq.js";
   });
 
   // Export io so services can emit events
-  export { io };
-  
+  export {
+    io
+  };
+
   async function startServer() {
     try {
-      await prisma.$connect();
-      console.log("Database connected");
 
       server.listen(PORT, () => {
         console.log(`🚀 Server running on port ${PORT}`);
@@ -51,11 +57,18 @@ import { sequelize } from "./config/databseconfigSq.js";
       process.exit(1);
     }
     try {
-  await sequelize.authenticate();
-  console.log("✅ DB connected successfully- using sequelize");
-} catch (error) {
-  console.error("❌ Connection error:", error);
-}
+      await sequelize.authenticate();
+      console.log("✅ DB connected successfully- using sequelize");
+
+await sequelize.sync({
+  alter: {
+    drop: false
+  }
+});      console.log("DB synced");
+
+    } catch (error) {
+      console.error("❌ Connection error:", error);
+    }
   }
 
   startServer();

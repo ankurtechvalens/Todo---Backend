@@ -4,7 +4,7 @@ import {
   generateAccessToken,
   generateRefreshToken,
 } from "../utils/generateToken.js";
-import * as userRepository from '../repositories/user.repository.js'
+import * as userRepository from '../repositorySequalize/user.repository.js'
 
 export const linkedInLoginService = async (code) => {
 

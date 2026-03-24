@@ -1,4 +1,4 @@
-import * as adminRepository from "../repositories/admin.repository.js";
+import * as adminRepository from "../repositorySequalize/admin.repository.js";
 
 export const getAllUsers = async () => {
   return adminRepository.getAllUsers();

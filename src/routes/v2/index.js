@@ -6,6 +6,7 @@ import authRoutes from "./auth.routes.js";
 import adminRoutes from './admin.routes.js'
 import roleRoutes from "./role.routes.js";
 import permissionRoutes from "./permission.routes.js";
+import developerRoutes from "./developer.routes.js";
 
 const router = express.Router();
 
@@ -16,5 +17,6 @@ router.use("/payments", paymentRoutes);
 router.use("/auth", authRoutes);
 router.use("/roles", roleRoutes);
 router.use("/permissions", permissionRoutes);
+router.use("/developer", developerRoutes);
 
 export default router;

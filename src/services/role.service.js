@@ -1,4 +1,4 @@
-import * as roleRepository from "../repositories/role.repository.js";
+import * as roleRepository from "../repositorySequalize/role.repository.js";
 
 export const createRole = async (data) => {
   return roleRepository.createRole(data);

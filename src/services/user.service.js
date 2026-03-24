@@ -1,28 +1,23 @@
 import bcrypt from "bcrypt";
-import jwt from 'jsonwebtoken'
+import jwt from "jsonwebtoken";
+import crypto from "crypto";
+
 import {
   generateAccessToken,
-  generateRefreshToken
+  generateRefreshToken,
 } from "../utils/generateToken.js";
-import * as userRepository from '../repositories/user.repository.js'
-import {
-  generateVerificationToken
-} from "../utils/generateVerificationToken.js";
-import crypto from "crypto";
-import {
-  sendEmail
-} from "./email.service.js";
-import {
-  verifyEmailTemplate
-} from '../templates/emails/verifyEmail.template.js'
 
-export const createUser = async ({
-  name,
-  email,
-  password,
-  roleId
-}) => {
+import * as userRepository from "../repositorySequalize/user.repository.js";
+import * as sessionRepo from "../repositorySequalize/userSession.repository.js";
 
+import { generateVerificationToken } from "../utils/generateVerificationToken.js";
+import { sendEmail } from "./email.service.js";
+import { verifyEmailTemplate } from "../templates/emails/verifyEmail.template.js";
+
+/*
+  CREATE USER
+*/
+export const createUser = async ({ name, email, password, roleId }) => {
   const existingUser = await userRepository.findUserByEmail(email);
 
   if (existingUser) {
@@ -35,228 +30,250 @@ export const createUser = async ({
     name,
     email,
     password: hashedPassword,
-    roleId
+    roleId,
   });
-
 };
 
+
+/*
+  REGISTER SERVICE (NEW)
+*/
+export const registerUserService = async (data) => {
+  const user = await createUser(data);
+
+  const accessToken = generateAccessToken(user);
+  const { refreshToken, hashedToken } = await generateRefreshToken(user);
+
+  return {
+    user,
+    accessToken,
+    refreshToken,
+    hashedToken,
+  };
+};
+
+
+/*
+  EMAIL VERIFICATION
+*/
 export const verificationEmailService = async (user) => {
-  try {
-    // 1. Generate token
-    const emailToken = generateVerificationToken();
+  const emailToken = generateVerificationToken();
 
-    // 2. Hash token
-    const emailVerificationHashed = crypto
-      .createHash("sha256")
-      .update(emailToken)
-      .digest("hex");
+  const hashed = crypto
+    .createHash("sha256")
+    .update(emailToken)
+    .digest("hex");
 
-    // 3. Save hashed token in DB
-    await userRepository.saveEmailVerificatioToken(emailVerificationHashed)
+  await userRepository.saveEmailVerificationToken(user.id, hashed);
 
-    // 4. Create verification link
-    const verificationLink = `${process.env.CLIENT_URL}/verify-email?token=${emailToken}`;
+  const link = `${process.env.CLIENT_URL}/verify-email?token=${emailToken}`;
+  const html = verifyEmailTemplate(user.name, link);
 
-    // 5. Generate email template
-    const html = verifyEmailTemplate(user.name, verificationLink);
-
-    // 6. Send email
-    await sendEmail({
-      to: user.email,
-      subject: "Verify your email",
-      html,
-    });
-  } catch (error) {
-    throw (error)
-  }
+  await sendEmail({
+    to: user.email,
+    subject: "Verify your email",
+    html,
+  });
 };
 
-export const verifyEmailLink = async (token) => {
-  if (!token) {
-    const error = new Error("Token is required");
-    error.statusCode = 400;
-    throw error;
-  }
 
-  const emailVerificationHashed = crypto
+/*
+  VERIFY EMAIL LINK
+*/
+export const verifyEmailLink = async (token) => {
+  if (!token) throw new Error("Token is required");
+
+  const hashed = crypto
     .createHash("sha256")
     .update(token)
     .digest("hex");
 
-  const user = await userRepository.findUserByEmailToken(emailVerificationHashed);
+  const user = await userRepository.findUserByEmailToken(hashed);
 
-  if (!user) {
-    const error = new Error("Invalid or expired token");
-    error.statusCode = 400;
-    throw error;
-  }
+  if (!user) throw new Error("Invalid or expired token");
 
-  // 🔥 idempotent check (IMPORTANT)
   if (user.isVerified) {
-    return {
-      message: "Already verified"
-    };
+    return { message: "Already verified" };
   }
 
   await userRepository.updateUserDataForEmailLink(user.id);
 
-  return {
-    message: "Email verified successfully"
-  };
+  return { message: "Email verified successfully" };
 };
 
-export const loginUser = async ({
-  email,
-  password
-}) => {
+
+/*
+  LOGIN SERVICE
+*/
+export const loginUserService = async ({ email, password }) => {
   const user = await userRepository.findUserByEmail(email);
 
-  if (!user) {
-    const error = new Error("Email not found - Invalid credentials");
-    error.statusCode = 400;
-    throw error;
+  if (!user) throw new Error("Invalid credentials");
+
+  // SSO CHECK
+  if (user.googleId || user.linkedinId || user.githubId) {
+    let provider = "SSO";
+    if (user.googleId) provider = "Google";
+    if (user.linkedinId) provider = "LinkedIn";
+    if (user.githubId) provider = "GitHub";
+
+    throw new Error(`Please login using ${provider}`);
   }
 
   const isMatch = await bcrypt.compare(password, user.password);
+  if (!isMatch) throw new Error("Invalid credentials");
 
-  if (!isMatch) {
-    const error = new Error("Wrong Password - Invalid credentials");
-    error.statusCode = 400;
-    throw error;
+  if (!user.isVerified) {
+    throw new Error("Please verify your email first");
   }
 
+  const accessToken = generateAccessToken(user);
+  const { refreshToken, hashedToken } = await generateRefreshToken(user);
+
   return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    role: user.role ?.name,
-    roleId: user.roleId,
-    isVerified: user.isVerified
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role?.name,
+      roleId: user.roleId,
+      isVerified: user.isVerified,
+    },
+    accessToken,
+    refreshToken,
+    hashedToken,
   };
 };
 
-export const logoutUser = async (refreshToken) => {
-  if (!refreshToken) {
-    const error = new Error("No refresh token provided");
-    error.statusCode = 400;
-    throw error;
-  }
 
-  const decoded = jwt.verify(
-    refreshToken,
-    process.env.JWT_REFRESH_SECRET
-  );
-
-  const user = await userRepository.findUserById(decoded.id);
-
-  if (!user || !user.refreshToken) {
-    const error = new Error("User not logged in");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const isMatch = await bcrypt.compare(
-    refreshToken,
-    user.refreshToken
-  );
-
-  if (!isMatch) {
-    const error = new Error("Invalid session");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  await userRepository.updateRefreshToken(user.id, null);
+/*
+  CREATE SESSION
+*/
+export const createSessionService = async ({
+  userId,
+  hashedToken,
+  userAgent,
+  ipAddress,
+}) => {
+  return sessionRepo.createSession({
+    userId,
+    refreshTokenHash: hashedToken,
+    userAgent,
+    ipAddress,
+    isActive: true,
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+  });
 };
 
-export const getUserById = async (id) => {
-  return userRepository.findUserSafeById(id);
+
+/*
+  LOGOUT (single device)
+*/
+export const logoutUserService = async (refreshToken) => {
+  if (!refreshToken) throw new Error("No token provided");
+
+  const hashed = crypto
+    .createHash("sha256")
+    .update(refreshToken)
+    .digest("hex");
+
+  const session = await sessionRepo.findSessionByHash(hashed);
+  console.log("sesion check --- ", hashed);
+  if (!session) throw new Error("Session not found");
+
+  await sessionRepo.deactivateSession(hashed);
 };
 
-export const updateUser = async (id, data) => {
-  if (data.role) {
-    delete data.role;
-  }
 
-  return userRepository.updateUserSafe(id, data);
-};
-
-export const saveRefreshToken = async (userId, token) => {
-  await userRepository.updateRefreshToken(userId, token)
-};
-
-export const refreshAccessToken = async (refreshToken) => {
-  if (!refreshToken) {
-    const error = new Error("No refresh token provided");
-    error.statusCode = 401;
-    throw error;
-  }
+/*
+  REFRESH TOKEN (ROTATION)
+*/
+export const refreshAccessTokenService = async (refreshToken) => {
+  if (!refreshToken) throw new Error("No token provided");
 
   let decoded;
-
   try {
     decoded = jwt.verify(
       refreshToken,
       process.env.JWT_REFRESH_SECRET
     );
   } catch {
-    const error = new Error("Invalid or expired refresh token");
-    error.statusCode = 403;
-    throw error;
+    throw new Error("Invalid or expired refresh token");
   }
+
+  const hashed = crypto
+    .createHash("sha256")
+    .update(refreshToken)
+    .digest("hex");
+
+  const session = await sessionRepo.findSessionByHash(hashed);
+
+  if (!session) throw new Error("Session expired");
 
   const user = await userRepository.findUserById(decoded.id);
 
-  if (!user || !user.refreshToken) {
-    const error = new Error("Session not found");
-    error.statusCode = 403;
-    throw error;
-  }
-
-  const isMatch = await bcrypt.compare(
-    refreshToken,
-    user.refreshToken
-  );
-
-  if (!isMatch) {
-    // Reuse detection
-    await userRepository.updateRefreshToken(user.id, null);
-
-    const error = new Error("Refresh token reuse detected");
-    error.statusCode = 403;
-    throw error;
-  }
-
-  const newAccessToken = generateAccessToken(user);
+  const accessToken = generateAccessToken(user);
 
   const {
     refreshToken: newRefreshToken,
-    hashedToken: newHashedToken
+    hashedToken: newHash,
   } = await generateRefreshToken(user);
 
-  await userRepository.updateRefreshToken(
-    user.id,
-    newHashedToken
-  );
+  // rotate session
+  await sessionRepo.deactivateSession(hashed);
+
+  await sessionRepo.createSession({
+    userId: user.id,
+    refreshTokenHash: newHash,
+    userAgent: "unknown",
+    ipAddress: "unknown",
+  });
 
   return {
-    accessToken: newAccessToken,
-    refreshToken: newRefreshToken
+    accessToken,
+    refreshToken: newRefreshToken,
   };
 };
 
+
+/*
+  GET USER
+*/
+export const getUserById = async (id) => {
+  return userRepository.findUserSafeById(id);
+};
+
+
+/*
+  UPDATE USER
+*/
+export const updateUser = async (id, data) => {
+  if (data.role) delete data.role;
+  return userRepository.updateUserSafe(id, data);
+};
+
+
+/*
+  UPDATE ROLE
+*/
 export const updateUserRoleService = async (req) => {
   const { roleId } = req.body;
+  return userRepository.updateUserRoleFunc(roleId, req.params.id);
+};
 
-  return await userRepository.updateUserRoleFunc(roleId, req.params.id)
-}
 
+/*
+  CHANGE PLAN
+*/
 export const changeUserPlan = async (userId, role) => {
-  if (role !== "BASIC") {
-    const error = new Error("Invalid role change");
-    error.statusCode = 400;
-    throw error;
-  }
-
+  if (role !== "BASIC") throw new Error("Invalid role change");
   return userRepository.updateUserRole(userId, "BASIC");
+};
+
+
+/*
+  SAVE FCM TOKEN
+*/
+export const saveFcmToken = async (userId, token) => {
+  return userRepository.saveFcmTok(userId, token);
 };

@@ -1,4 +1,4 @@
-import * as permissionRepository from "../repositories/permission.repository.js";
+import * as permissionRepository from "../repositorySequalize/permission.repository.js";
 
 export const createPermission = async (data) => {
   return permissionRepository.createPermission(data);

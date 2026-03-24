@@ -1,7 +1,8 @@
 import { getCache, setCache, deleteByPattern } from "../utils/cache.js";
 import { io } from "../server.js";
-import * as todoRepository from '../repositories/todo.repository.js'
+import * as todoRepository from '../repositorySequalize/todo.repository.js'
 import cloudinary from "../config/cloundinary.js";
+import { sendPushNotification } from "./notification.service.js";
 
 export const createTodo = async (userId, data, file) => {
 
@@ -63,6 +64,14 @@ export const createTodo = async (userId, data, file) => {
 
   await deleteByPattern(`todos:${userId}:*`);
 
+  if (user?.fcmToken) {
+    await sendPushNotification(
+      user.fcmToken,
+      "New Todo Created",
+      `Task: ${data.title}`
+    );
+  }
+
   io.to(userId).emit("todo:created", todo);
 
   return todo;
@@ -74,11 +83,11 @@ export const getUserTodos = async ({
   limit,
   sortBy,
   order,
+  search,
 }) => {
 
-  const cacheKey = `todos:${userId}:${page}:${limit}:${sortBy}:${order}`;
+  const cacheKey = `todos:${userId}:${page}:${limit}:${sortBy}:${order}:${search || ""}`;
 
-  // Check Cache First
   const cachedData = await getCache(cacheKey);
   if (cachedData) {
     console.log("⚡Serving from Redis");
@@ -88,8 +97,8 @@ export const getUserTodos = async ({
   const skip = (page - 1) * limit;
 
   const [todos, total] = await Promise.all([
-    todoRepository.getAllTodos(userId,skip,limit,order,sortBy),
-    todoRepository.getAllTodosTotal(userId),
+    todoRepository.getAllTodos(userId, skip, limit, order, sortBy, search),
+    todoRepository.getAllTodosTotal(userId, search),
   ]);
 
   const result = {
@@ -104,7 +113,6 @@ export const getUserTodos = async ({
     },
   };
 
-  // Store in Cache (TTL 60 seconds)
   await setCache(cacheKey, result, 60);
 
   return result;
