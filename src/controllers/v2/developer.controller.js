@@ -42,7 +42,7 @@ export const getKeysInfo = async (req, res, next) => {
   } catch (err) {
     next(err);
   }
-};
+};clea
 
 export const regenerateKeys = async (req, res, next) => {
   try {
