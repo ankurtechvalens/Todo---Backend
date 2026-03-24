@@ -5,7 +5,7 @@ import {
   generateAccessToken,
   generateRefreshToken,
 } from "../utils/generateToken.js";
-import * as userRepository from '../repositories/user.repository.js'
+import * as userRepository from '../repositorySequalize/user.repository.js'
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 

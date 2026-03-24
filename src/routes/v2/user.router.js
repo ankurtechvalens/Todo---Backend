@@ -1,5 +1,5 @@
 import express from 'express'
-import { registerUser, loginUser, updateUser, getProfile, refreshTokenController, logoutUser, changePlan } from '../../controllers/v2/user.controllers.js';
+import { registerUser, loginUser, updateUser, getProfile, refreshTokenController, logoutUser, changePlan, saveFcmToken } from '../../controllers/v2/user.controllers.js';
 import authMiddleware from "../../middleware/auth.middleware.js";
 import { validate } from '../../middleware/validate.js';
 import {registerSchema , loginSchema} from '../../validators/user.validators.js'
@@ -12,6 +12,7 @@ router.put("/update", authMiddleware, updateUser);
 router.get('/profile', authMiddleware, getProfile);
 router.post("/refresh", refreshTokenController);
 router.put("/plan", authMiddleware, changePlan);
+router.post("/save-token", authMiddleware, saveFcmToken);
 
 router.get('/', (req, res) => {
   res.send('User route');

@@ -3,7 +3,6 @@ import * as todoService from "../../services/todo.service.js";
 export const createTodo = async (req, res, next) => {
   try {
     const todo = await todoService.createTodo(req.user.id, req.body, req.file);
-
     res.status(201).json(todo);
 
   } catch (error) {

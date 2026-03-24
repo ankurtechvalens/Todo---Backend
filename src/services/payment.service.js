@@ -1,5 +1,5 @@
 import { prisma } from "../config/prisma.js";
-import * as paymentRepository from "../repositories/payment.repository.js";
+import * as paymentRepository from "../repositorySequalize/payment.repository.js";
 
 export const createPayment = async (userId, amount) => {
   return paymentRepository.createPayment({

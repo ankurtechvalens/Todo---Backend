@@ -13,7 +13,6 @@ const authMiddleware = async (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
 
-    // ✅ Use repository instead of prisma
     const user = await userRepository.findUserWithPermissionsById(decoded.id);
 
     if (!user) {
